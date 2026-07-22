@@ -727,10 +727,13 @@ function migrate(data){
   ['workouts','foods','meals','bodyMeasurements','customExercises','favoriteProducts','recentProducts']
     .forEach(k=>{ if(!Array.isArray(merged[k]))merged[k]=[]; });
   if(typeof merged.tasks!=='object'||!merged.tasks)merged.tasks={};
-  // waga w profilu ma zawsze odzwierciedlać najnowszy pomiar ciała
+  // waga i zapotrzebowanie kaloryczne w profilu mają zawsze odzwierciedlać najnowszy pomiar ciała
   if(merged.profile&&merged.bodyMeasurements.length){
     const latest=[...merged.bodyMeasurements].sort((a,b)=>a.date<b.date?1:-1)[0];
-    merged.profile.weight=latest.weight;
+    if(merged.profile.weight!==latest.weight){
+      merged.profile.weight=latest.weight;
+      merged.profile.calorieGoal=calcCalorieGoal(merged.profile);
+    }
   }
   merged.schemaVersion=CFG.schemaVersion;
   return merged;
@@ -1238,6 +1241,14 @@ function openProfileForm(isEdit){
       // przy pierwszym zapisie ustaw wagę początkową (pomiar)
       if(first && !S.bodyMeasurements.length){
         S.bodyMeasurements.push({id:uid(),date:todayKey(),weight:w,note:'Waga początkowa'});
+      } else {
+        // zmiana wagi w profilu aktualizuje też dzisiejszy pomiar ciała
+        const lb=latestBody();
+        if(!lb||lb.weight!==w){
+          const todays=S.bodyMeasurements.find(b=>b.date===todayKey());
+          if(todays)todays.weight=w;
+          else S.bodyMeasurements.push({id:uid(),date:todayKey(),weight:w,note:''});
+        }
       }
       save();
       closeSheet();
@@ -2408,15 +2419,15 @@ function openBodyForm(existing){
       const obj={id:b.id||uid(),date:date.value||todayKey(),weight:w,note:note.value.trim()};
       if(b.id){const i=S.bodyMeasurements.findIndex(x=>x.id===b.id);S.bodyMeasurements[i]=obj;}
       else S.bodyMeasurements.push(obj);
-      // zaktualizuj wagę w profilu na podstawie najnowszego pomiaru
-      if(S.profile){const lb=latestBody(); if(lb)S.profile.weight=lb.weight;}
+      // zaktualizuj wagę i zapotrzebowanie kaloryczne w profilu na podstawie najnowszego pomiaru
+      if(S.profile){const lb=latestBody(); if(lb){S.profile.weight=lb.weight; S.profile.calorieGoal=calcCalorieGoal(S.profile);}}
       save(); closeSheet(); toast('Pomiar zapisany','ok');
       renderers[currentTab]&&renderers[currentTab]();
     }},existing?'Zapisz zmiany':'Dodaj pomiar'));
     if(existing){
       body.appendChild(el('button',{class:'btn danger block',style:'margin-top:10px',onclick:()=>{
         S.bodyMeasurements=S.bodyMeasurements.filter(x=>x.id!==b.id);
-        if(S.profile){const lb=latestBody(); if(lb)S.profile.weight=lb.weight;}
+        if(S.profile){const lb=latestBody(); if(lb){S.profile.weight=lb.weight; S.profile.calorieGoal=calcCalorieGoal(S.profile);}}
         save();closeSheet();toast('Pomiar usunięty');renderers[currentTab]&&renderers[currentTab]();
       }},'Usuń pomiar'));
     }
