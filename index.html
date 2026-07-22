@@ -524,7 +524,7 @@ input[type=checkbox]{width:26px;height:26px;accent-color:var(--accent);}
 /* Select w stylu "tekstowym" (bez zaokrąglonego panelu) — jak wybór miesiąca w kalendarzu */
 select.select-plain{font-size:16px;font-weight:600;color:var(--text);
   background-color:transparent;border:none;text-align:left;cursor:pointer;padding:13px 24px 13px 0;min-height:auto;
-  width:auto;max-width:100%;
+  width:auto;max-width:100%;display:block;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23888'%3E%3Cg transform='rotate(90 12 12)'%3E%3Cpath d='M9 5l7 7-7 7 1.5 1.5L19 12 10.5 3.5z'/%3E%3C/g%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right center;background-size:11px;outline:none;}
 select.select-plain:focus,select.select-plain:focus-visible{outline:none;border-color:transparent;}
@@ -1078,6 +1078,13 @@ function statHead(icon,color,title,action){
     el('div',{class:'mi',style:`background:color-mix(in srgb, ${color} 16%, transparent);color:${color}`,html:ICONS[icon]||''}),
     el('div',{class:'mt'},title),
     action||null);
+}
+/* Dopasowuje szerokość select.select-plain do tekstu aktualnie wybranej opcji */
+function fitSelectWidth(sel,extra=30){
+  if(!window.__selMeasureCtx)window.__selMeasureCtx=document.createElement('canvas').getContext('2d');
+  const ctx=window.__selMeasureCtx; ctx.font='600 16px '+getComputedStyle(document.body).fontFamily;
+  const text=sel.options[sel.selectedIndex]?sel.options[sel.selectedIndex].text:'';
+  sel.style.width=(ctx.measureText(text).width+extra)+'px';
 }
 /* Prosty wykres słupkowy SVG */
 function barChart(bars,{color='var(--train)',height=160,label=''}={}){
@@ -2434,21 +2441,21 @@ renderers.stats=function(){
   const scr=$('#screen-stats'); scr.innerHTML='';
   scr.appendChild(el('div',{class:'topbar'},el('div',{},el('h1',{},'Statystyki'),el('div',{class:'sub'},'Twój postęp w liczbach'))));
 
-  // zakres
-  const rangeSel=el('select',{'aria-label':'Zakres dat',style:'margin-bottom:10px'},
-    ...[['7','7 dni'],['30','30 dni'],['90','90 dni'],['all','Wszystko']].map(([v,lab])=>
-      el('option',{value:v,selected:String(statsRange.days)===v},lab)));
-  rangeSel.addEventListener('change',()=>{statsRange={days:rangeSel.value==='all'?'all':Number(rangeSel.value)};renderers.stats();});
-  scr.appendChild(rangeSel);
-  const {from,to}=rangeBounds();
-  scr.appendChild(el('p',{class:'label',style:'text-align:center;margin:-2px 0 12px;font-size:12px'},`${fmtDate(from)} – ${fmtDate(to)}`));
-
   // przełącznik kategorii
-  const catSel=el('select',{'aria-label':'Kategoria statystyk',style:'margin-bottom:14px'},
+  const catSel=el('select',{class:'select-plain','aria-label':'Kategoria statystyk',style:'margin:0 var(--space) 10px'},
     ...[['workout','Trening'],['nutrition','Żywienie'],['weight','Waga']].map(([k,lab])=>
       el('option',{value:k,selected:statsSeg===k},lab)));
   catSel.addEventListener('change',()=>{statsSeg=catSel.value;renderers.stats();});
-  scr.appendChild(catSel);
+  scr.appendChild(catSel); fitSelectWidth(catSel);
+
+  // zakres
+  const rangeSel=el('select',{class:'select-plain','aria-label':'Zakres dat',style:'margin:0 var(--space) 14px'},
+    ...[['7','7 dni'],['30','30 dni'],['90','90 dni'],['all','Wszystko']].map(([v,lab])=>
+      el('option',{value:v,selected:String(statsRange.days)===v},lab)));
+  rangeSel.addEventListener('change',()=>{statsRange={days:rangeSel.value==='all'?'all':Number(rangeSel.value)};renderers.stats();});
+  scr.appendChild(rangeSel); fitSelectWidth(rangeSel);
+  const {from,to}=rangeBounds();
+  scr.appendChild(el('p',{class:'label',style:'text-align:center;margin:-2px 0 12px;font-size:12px'},`${fmtDate(from)} – ${fmtDate(to)}`));
 
   const host=el('div'); scr.appendChild(host);
   if(statsSeg==='workout')statsWorkout(host,from,to);
@@ -2508,12 +2515,7 @@ function statsWorkout(host,from,to){
   const c4=el('div',{class:'card'}); c4.appendChild(el('h3',{},'Progres ćwiczenia'));
   const sel=el('select',{class:'select-plain',style:'margin-bottom:12px'},...allEx.map(n=>el('option',{value:n},n)));
   c4.appendChild(sel);
-  if(!window.__calMonthMeasureCtx)window.__calMonthMeasureCtx=document.createElement('canvas').getContext('2d');
-  const measureCtx=window.__calMonthMeasureCtx;
-  const resizeSel=()=>{
-    measureCtx.font='600 16px '+getComputedStyle(document.body).fontFamily;
-    sel.style.width=(measureCtx.measureText(sel.value).width+30)+'px';
-  };
+  const resizeSel=()=>fitSelectWidth(sel);
   const chartHost=el('div'); c4.appendChild(chartHost);
   const drawProg=()=>{ chartHost.innerHTML='';
     const pts=[]; list.slice().sort((a,b)=>a.date<b.date?-1:1).forEach(w=>{
