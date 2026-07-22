@@ -263,6 +263,9 @@ input[type=checkbox]{width:26px;height:26px;accent-color:var(--accent);}
 .field input,.field select,.field textarea{
    width:100%;background:var(--surface-2);border:1px solid transparent;border-radius:var(--r-md);
    padding:14px 16px;min-height:50px;outline:none;transition:border-color var(--dur);}
+.field input[type="date"],.field input[type="time"]{
+   -webkit-appearance:none;appearance:none;height:50px;line-height:20px;}
+.field input[type="date"]::-webkit-date-and-time-value{text-align:left;}
 .field textarea{min-height:76px;resize:vertical;}
 .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent);}
 .field input[aria-invalid="true"],.field select[aria-invalid="true"]{border-color:var(--danger);}
@@ -521,12 +524,19 @@ input[type=checkbox]{width:26px;height:26px;accent-color:var(--accent);}
 .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
 .cal-head .cal-title{font-size:17px;font-weight:700;text-transform:capitalize;}
 .cal-title-select{font-size:17px;font-weight:700;text-transform:capitalize;color:var(--text);
-  background-color:transparent;border:none;text-align:center;cursor:pointer;padding:6px 1px 6px 0;min-height:auto;
+  background-color:transparent;border:none;text-align:center;cursor:pointer;padding:6px 24px 6px 0;min-height:auto;
   width:auto;flex:0 0 auto;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23888'%3E%3Cg transform='rotate(90 12 12)'%3E%3Cpath d='M9 5l7 7-7 7 1.5 1.5L19 12 10.5 3.5z'/%3E%3C/g%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right center;background-size:11px;outline:none;}
 .cal-title-select:focus,.cal-title-select:focus-visible{outline:none;border-color:transparent;}
 .cal-title-select option{color:#000;text-transform:capitalize;}
+/* Select w stylu "tekstowym" (bez zaokrąglonego panelu) — jak wybór miesiąca w kalendarzu */
+select.select-plain{font-size:16px;font-weight:600;color:var(--text);
+  background-color:transparent;border:none;text-align:left;cursor:pointer;padding:13px 24px 13px 0;min-height:auto;
+  width:auto;max-width:100%;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23888'%3E%3Cg transform='rotate(90 12 12)'%3E%3Cpath d='M9 5l7 7-7 7 1.5 1.5L19 12 10.5 3.5z'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right center;background-size:11px;outline:none;}
+select.select-plain:focus,select.select-plain:focus-visible{outline:none;border-color:transparent;}
 .cal-dow-row{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px;}
 .cal-dow{text-align:center;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
@@ -727,6 +737,11 @@ function migrate(data){
   ['workouts','foods','meals','bodyMeasurements','customExercises','favoriteProducts','recentProducts']
     .forEach(k=>{ if(!Array.isArray(merged[k]))merged[k]=[]; });
   if(typeof merged.tasks!=='object'||!merged.tasks)merged.tasks={};
+  // waga w profilu ma zawsze odzwierciedlać najnowszy pomiar ciała
+  if(merged.profile&&merged.bodyMeasurements.length){
+    const latest=[...merged.bodyMeasurements].sort((a,b)=>a.date<b.date?1:-1)[0];
+    merged.profile.weight=latest.weight;
+  }
   merged.schemaVersion=CFG.schemaVersion;
   return merged;
 }
@@ -1336,48 +1351,27 @@ if(!window.__taskSwipeDocListener){
     if(activeSwipe&&!activeSwipe.wrap.contains(e.target)){ activeSwipe.close(); activeSwipe=null; }
   });
 }
-/* Obsługa przeciągnięcia wiersza w lewo, aby odsłonić kapsułkę usuwania */
+/* Obsługa kliknięcia w wiersz, aby przesunąć go w lewo i odsłonić kapsułkę usuwania */
 function attachSwipeDelete(item,pill,swipeWrap,revealPx){
   const REVEAL=revealPx||76;
-  let startX=0,dx=0,dragging=false,open=false;
-  const setX=(x,animate)=>{
+  let open=false;
+  const setX=(toOpen,animate)=>{
+    open=toOpen;
     item.style.transition=animate?'transform .2s ease':'none';
-    item.style.transform=`translateX(${x}px)`;
-    const raw=Math.max(0,Math.min(1,-x/REVEAL));
-    const DELAY=0.45;
-    const progress=Math.max(0,Math.min(1,(raw-DELAY)/(1-DELAY)));
+    item.style.transform=`translateX(${toOpen?-REVEAL:0}px)`;
     pill.style.transition=animate?'transform .2s ease,opacity .2s ease':'none';
-    pill.style.transform=`scale(${progress})`;
-    pill.style.opacity=progress;
+    pill.style.transform=`scale(${toOpen?1:0})`;
+    pill.style.opacity=toOpen?1:0;
   };
-  const api={ close:()=>{open=false;setX(0,true);} };
-  let pending=false,pointerId=null;
-  item.addEventListener('pointerdown',e=>{
+  const api={ close:()=>{setX(false,true);} };
+  item.style.cursor='pointer';
+  item.addEventListener('click',e=>{
     if(e.target.closest('.done-btn'))return;
-    pending=true; dragging=false; startX=e.clientX; pointerId=e.pointerId;
+    if(open){ api.close(); if(activeSwipe===api)activeSwipe=null; return; }
+    if(activeSwipe&&activeSwipe!==api)activeSwipe.close();
+    setX(true,true);
+    activeSwipe=Object.assign(api,{wrap:swipeWrap});
   });
-  item.addEventListener('pointermove',e=>{
-    if(!pending)return;
-    dx=e.clientX-startX;
-    if(!dragging){
-      if(Math.abs(dx)<6)return;
-      dragging=true; try{item.setPointerCapture(pointerId);}catch(err){}
-    }
-    let x=(open?-REVEAL:0)+dx; x=Math.max(-REVEAL,Math.min(0,x));
-    setX(x,false);
-  });
-  const finish=()=>{
-    pending=false;
-    if(!dragging){ return; }
-    dragging=false;
-    if(open){ open = dx>REVEAL/2 ? false : true; } else { open = dx<-REVEAL/2 ? true : false; }
-    setX(open?-REVEAL:0,true); dx=0;
-    if(open){ if(activeSwipe&&activeSwipe!==api)activeSwipe.close(); activeSwipe=Object.assign(api,{wrap:swipeWrap}); }
-    else if(activeSwipe===api) activeSwipe=null;
-  };
-  item.addEventListener('pointerup',finish);
-  item.addEventListener('pointercancel',finish);
-  item.addEventListener('lostpointercapture',finish);
 }
 function renderTodayPlan(key){
   const tasks=S.tasks[key]||(S.tasks[key]=[]);
@@ -1529,7 +1523,7 @@ function renderWorkoutCalendar(scr){
   const measureCtx=window.__calMonthMeasureCtx;
   measureCtx.font='700 17px '+getComputedStyle(document.body).fontFamily;
   const labelText=PL_MON_NOM[cm-1]+' '+cy;
-  monthSelect.style.width=(measureCtx.measureText(labelText).width+20)+'px';
+  monthSelect.style.width=(measureCtx.measureText(labelText).width+34)+'px';
   head.appendChild(monthSelect);
   head.appendChild(el('button',{class:'icon-btn',style:'width:36px;height:36px','aria-label':'Następny miesiąc',html:ICONS.chevR,
     onclick:()=>{const d=new Date(cy,cm,1);calMonth=monthKey(d);renderers.workout();}}));
@@ -2409,14 +2403,16 @@ function openBodyForm(existing){
       const obj={id:b.id||uid(),date:date.value||todayKey(),weight:w,note:note.value.trim()};
       if(b.id){const i=S.bodyMeasurements.findIndex(x=>x.id===b.id);S.bodyMeasurements[i]=obj;}
       else S.bodyMeasurements.push(obj);
-      // zaktualizuj wagę w profilu
-      if(S.profile&&obj.date===latestBody().date)S.profile.weight=w;
+      // zaktualizuj wagę w profilu na podstawie najnowszego pomiaru
+      if(S.profile){const lb=latestBody(); if(lb)S.profile.weight=lb.weight;}
       save(); closeSheet(); toast('Pomiar zapisany','ok');
       renderers[currentTab]&&renderers[currentTab]();
     }},existing?'Zapisz zmiany':'Dodaj pomiar'));
     if(existing){
       body.appendChild(el('button',{class:'btn danger block',style:'margin-top:10px',onclick:()=>{
-        S.bodyMeasurements=S.bodyMeasurements.filter(x=>x.id!==b.id);save();closeSheet();toast('Pomiar usunięty');renderers[currentTab]&&renderers[currentTab]();
+        S.bodyMeasurements=S.bodyMeasurements.filter(x=>x.id!==b.id);
+        if(S.profile){const lb=latestBody(); if(lb)S.profile.weight=lb.weight;}
+        save();closeSheet();toast('Pomiar usunięty');renderers[currentTab]&&renderers[currentTab]();
       }},'Usuń pomiar'));
     }
   });
@@ -2513,8 +2509,14 @@ function statsWorkout(host,from,to){
   // progres wybranego ćwiczenia
   const allEx=Object.keys(byEx).sort();
   const c4=el('div',{class:'card'}); c4.appendChild(el('h3',{},'Progres ćwiczenia'));
-  const sel=el('select',{style:'margin-bottom:12px'},...allEx.map(n=>el('option',{value:n},n)));
+  const sel=el('select',{class:'select-plain',style:'margin-bottom:12px'},...allEx.map(n=>el('option',{value:n},n)));
   c4.appendChild(sel);
+  if(!window.__calMonthMeasureCtx)window.__calMonthMeasureCtx=document.createElement('canvas').getContext('2d');
+  const measureCtx=window.__calMonthMeasureCtx;
+  const resizeSel=()=>{
+    measureCtx.font='600 16px '+getComputedStyle(document.body).fontFamily;
+    sel.style.width=(measureCtx.measureText(sel.value).width+30)+'px';
+  };
   const chartHost=el('div'); c4.appendChild(chartHost);
   const drawProg=()=>{ chartHost.innerHTML='';
     const pts=[]; list.slice().sort((a,b)=>a.date<b.date?-1:1).forEach(w=>{
@@ -2527,7 +2529,7 @@ function statsWorkout(host,from,to){
     chartHost.appendChild(el('p',{class:'label',style:'text-align:center;font-size:12px;margin-top:4px'},'Szacowane 1RM (Epley) w czasie'));
     if(pts.length)chartHost.appendChild(el('p',{class:'sr-only'},'Wartości 1RM: '+pts.map(p=>p.label+': '+p.y+' kg').join('; ')));
   };
-  sel.addEventListener('change',drawProg); drawProg();
+  sel.addEventListener('change',()=>{resizeSel();drawProg();}); resizeSel(); drawProg();
   host.appendChild(c4);
 }
 
