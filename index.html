@@ -119,7 +119,7 @@ input[type=checkbox]{width:26px;height:26px;accent-color:var(--accent);}
       border:1px solid var(--hairline);}
 .card.inner{border-radius:var(--r-lg);background:var(--surface-2);}
 .card h2{font-size:20px;font-weight:700;margin:0 0 12px;letter-spacing:-.3px;}
-.card h3{font-size:15px;font-weight:600;color:var(--muted);margin:0 0 10px;
+.card h3{font-size:15px;font-weight:600;color:var(--text);margin:0 0 10px;
          text-transform:uppercase;letter-spacing:.4px;}
 
 .row{display:flex;align-items:center;justify-content:space-between;gap:12px;}
@@ -994,7 +994,12 @@ function lineChart(points,{color='var(--accent)',height=150,label=''}={}){
   path.setAttribute('fill','none');path.setAttribute('stroke',color);path.setAttribute('stroke-width','2.5');
   path.setAttribute('stroke-linejoin','round');path.setAttribute('stroke-linecap','round');svg.appendChild(path);
   points.forEach((p,i)=>{ const c=document.createElementNS(ns,'circle');
-    c.setAttribute('cx',px(i));c.setAttribute('cy',py(p.y));c.setAttribute('r','3');c.setAttribute('fill',color);svg.appendChild(c); });
+    c.setAttribute('cx',px(i));c.setAttribute('cy',py(p.y));c.setAttribute('r','3');c.setAttribute('fill',color);svg.appendChild(c);
+    const hit=document.createElementNS(ns,'circle');
+    hit.setAttribute('cx',px(i));hit.setAttribute('cy',py(p.y));hit.setAttribute('r','9');hit.setAttribute('fill','transparent');
+    hit.style.cursor='pointer';
+    const title=document.createElementNS(ns,'title'); title.textContent=(p.label?p.label+': ':'')+fmtNum(p.y,Number.isInteger(p.y)?0:2);
+    hit.appendChild(title); svg.appendChild(hit); });
   // etykiety osi X (pierwszy/ostatni)
   const addT=(x,anchor,txt)=>{ const t=document.createElementNS(ns,'text');
     t.setAttribute('x',x);t.setAttribute('y',H-6);t.setAttribute('text-anchor',anchor);t.textContent=txt;svg.appendChild(t); };
@@ -1038,11 +1043,15 @@ function miniBars(vals,color,{w=140,h=40}={}){
 /* Karta metryki w stylu Apple Zdrowie (ikona + tytuł + chevron) */
 function metricCard(icon,color,title,onClick,build){
   const card=el(onClick?'button':'div',{class:'card metric',onclick:onClick||undefined});
-  card.appendChild(el('div',{class:'metric-head'},
-    el('div',{class:'mt'},title),
-    onClick?el('div',{class:'mc',html:ICONS.chevRs}):null));
+  card.appendChild(statHead(icon,color,title,onClick?el('div',{class:'mc',html:ICONS.chevRs}):null));
   build(card);
   return card;
+}
+function statHead(icon,color,title,action){
+  return el('div',{class:'metric-head'},
+    el('div',{class:'mi',style:`background:color-mix(in srgb, ${color} 16%, transparent);color:${color}`,html:ICONS[icon]||''}),
+    el('div',{class:'mt'},title),
+    action||null);
 }
 /* Prosty wykres słupkowy SVG */
 function barChart(bars,{color='var(--train)',height=160,label=''}={}){
@@ -1057,7 +1066,9 @@ function barChart(bars,{color='var(--train)',height=160,label=''}={}){
   bars.forEach((b,i)=>{ const h=(b.y/maxY)*(H-2*pad); const x=pad+i*(bw+gap);
     const rect=document.createElementNS(ns,'rect'); rect.setAttribute('x',x);rect.setAttribute('y',H-pad-h);
     rect.setAttribute('width',bw);rect.setAttribute('height',Math.max(1,h));rect.setAttribute('rx',Math.min(6,bw/3));
-    rect.setAttribute('fill',b.color||color);svg.appendChild(rect);
+    rect.setAttribute('fill',b.color||color);rect.style.cursor='pointer';
+    const title=document.createElementNS(ns,'title'); title.textContent=(b.label?b.label+': ':'')+fmtNum(b.y,Number.isInteger(b.y)?0:2);
+    rect.appendChild(title); svg.appendChild(rect);
     if(b.label){ const t=document.createElementNS(ns,'text');t.setAttribute('x',x+bw/2);t.setAttribute('y',H-8);
       t.setAttribute('text-anchor','middle');t.textContent=b.label;svg.appendChild(t);} });
   wrap.appendChild(svg);
@@ -2388,25 +2399,14 @@ function openBodyForm(existing){
   openSheet(existing?'Edytuj pomiar':'Nowy pomiar ciała',body=>{
     const date=el('input',{type:'date',value:b.date||todayKey(),max:todayKey()});
     const weight=el('input',{type:'number',inputmode:'decimal',min:20,max:400,step:'0.1',value:b.weight||'',placeholder:'kg'});
-    const bodyfat=el('input',{type:'number',inputmode:'decimal',min:2,max:70,step:'0.1',value:b.bodyfat||'',placeholder:'%'});
-    const waist=el('input',{type:'number',inputmode:'decimal',min:30,max:200,step:'0.1',value:b.waist||'',placeholder:'cm'});
-    const chest=el('input',{type:'number',inputmode:'decimal',min:30,max:200,step:'0.1',value:b.chest||'',placeholder:'cm'});
-    const hips=el('input',{type:'number',inputmode:'decimal',min:30,max:200,step:'0.1',value:b.hips||'',placeholder:'cm'});
-    const arm=el('input',{type:'number',inputmode:'decimal',min:15,max:80,step:'0.1',value:b.arm||'',placeholder:'cm'});
-    const thigh=el('input',{type:'number',inputmode:'decimal',min:25,max:120,step:'0.1',value:b.thigh||'',placeholder:'cm'});
     const note=el('textarea',{placeholder:'Notatka (opcjonalnie)'}); note.value=b.note||'';
     body.appendChild(field('Data',date));
     body.appendChild(field('Waga (kg) — wymagane',weight));
-    body.appendChild(el('div',{class:'grid2'},field('Tkanka tłuszcz. (%)',bodyfat),field('Talia (cm)',waist)));
-    body.appendChild(el('div',{class:'grid2'},field('Klatka (cm)',chest),field('Biodra (cm)',hips)));
-    body.appendChild(el('div',{class:'grid2'},field('Ramię (cm)',arm),field('Udo (cm)',thigh)));
     body.appendChild(field('Notatka',note));
     body.appendChild(el('button',{class:'btn primary block',onclick:()=>{
       clearErr(weight); const w=num(weight.value);
       if(!(w>=20&&w<=400)){showErr(weight,'Podaj wagę w zakresie 20–400 kg.');return;}
-      const obj={id:b.id||uid(),date:date.value||todayKey(),weight:w,
-        bodyfat:num(bodyfat.value)||null,waist:num(waist.value)||null,chest:num(chest.value)||null,
-        hips:num(hips.value)||null,arm:num(arm.value)||null,thigh:num(thigh.value)||null,note:note.value.trim()};
+      const obj={id:b.id||uid(),date:date.value||todayKey(),weight:w,note:note.value.trim()};
       if(b.id){const i=S.bodyMeasurements.findIndex(x=>x.id===b.id);S.bodyMeasurements[i]=obj;}
       else S.bodyMeasurements.push(obj);
       // zaktualizuj wagę w profilu
@@ -2422,16 +2422,16 @@ function openBodyForm(existing){
   });
 }
 /* ---------- 19. STATYSTYKI ---------- */
-let statsRange={days:30,from:null,to:null};
+let statsRange={days:30};
 let statsSeg='workout';
 
 function rangeBounds(){
-  const to=statsRange.to||todayKey();
+  const to=todayKey();
   let from;
   if(statsRange.days==='all'){ // najwcześniejsza data w danych
     const all=[...S.workouts.map(w=>w.date),...S.meals.map(m=>m.date),...S.bodyMeasurements.map(b=>b.date)];
     from=all.length?all.sort()[0]:addDays(to,-30);
-  } else if(statsRange.from){ from=statsRange.from; }
+  }
   else from=addDays(to,-(statsRange.days-1));
   return {from,to};
 }
@@ -2443,11 +2443,9 @@ renderers.stats=function(){
   // zakres
   const seg=el('div',{class:'seg'});
   [['7',7],['30',30],['90',90],['Wszystko','all']].forEach(([lab,v])=>{
-    const b=el('button',{class:(statsRange.days===v&&!statsRange.from?'active':''),onclick:()=>{statsRange={days:v,from:null,to:null};renderers.stats();}},lab);
+    const b=el('button',{class:(statsRange.days===v?'active':''),onclick:()=>{statsRange={days:v};renderers.stats();}},lab);
     seg.appendChild(b);
   });
-  const custom=el('button',{class:(statsRange.from?'active':''),'aria-label':'Własny zakres',onclick:openCustomRange},'Zakres');
-  seg.appendChild(custom);
   scr.appendChild(seg);
   const {from,to}=rangeBounds();
   scr.appendChild(el('p',{class:'label',style:'text-align:center;margin:-6px 0 12px;font-size:12px'},`${fmtDate(from)} – ${fmtDate(to)}`));
@@ -2465,21 +2463,10 @@ renderers.stats=function(){
   else statsWeight(host,from,to);
 };
 
-function openCustomRange(){
-  openSheet('Własny zakres dat',body=>{
-    const from=el('input',{type:'date',value:rangeBounds().from,max:todayKey()});
-    const to=el('input',{type:'date',value:rangeBounds().to,max:todayKey()});
-    body.appendChild(field('Od',from)); body.appendChild(field('Do',to));
-    body.appendChild(el('button',{class:'btn primary block',onclick:()=>{
-      if(from.value&&to.value&&from.value>to.value){showErr(from,'Data „od” nie może być późniejsza niż „do”.');return;}
-      statsRange={days:null,from:from.value,to:to.value};closeSheet();renderers.stats();
-    }},'Zastosuj'));
-  });
-}
-function statCard(title,rows){
+function statCard(title,rows,color){
   const c=el('div',{class:'card'}); c.appendChild(el('h3',{},title));
   rows.forEach(([l,v],i)=>c.appendChild(el('div',{class:'row',style:i?'margin-top:9px':''},
-    el('span',{class:'label'},l),el('b',{style:'font-size:16px'},v))));
+    el('span',{class:'label'},l),el('b',{style:`font-size:16px${color?';color:'+color:''}`},v))));
   return c;
 }
 
@@ -2489,10 +2476,15 @@ function statsWorkout(host,from,to){
   const totMin=list.reduce((s,w)=>s+num(w.duration),0);
   const totVol=list.reduce((s,w)=>s+workoutVolume(w),0);
   let sets=0; list.forEach(w=>(w.exercises||[]).forEach(e=>sets+=(e.sets||[]).filter(s=>!s.warmup).length));
-  host.appendChild(statCard('Podsumowanie treningów',[
-    ['Liczba treningów',list.length],['Łączny czas',fmtDuration(totMin)],
-    ['Średni czas',fmtDuration(totMin/list.length)],['Całkowita objętość',fmtNum(totVol)+' kg'],
-    ['Liczba serii',sets]]));
+  host.appendChild(metricCard('dumbbell','var(--train)','Podsumowanie treningów',null,card=>{
+    card.appendChild(el('div',{},
+      el('div',{class:'mnum',style:'color:var(--train)'},list.length+' '+plWord(list.length,'trening','treningi','treningów')),
+      el('div',{class:'msub'},'Łączny czas: '+fmtDuration(totMin))));
+    card.appendChild(el('div',{class:'row',style:'margin-top:14px'},
+      el('div',{},el('div',{class:'label'},'Średni czas'),el('div',{style:'font-weight:700'},fmtDuration(totMin/list.length))),
+      el('div',{},el('div',{class:'label'},'Objętość'),el('div',{style:'font-weight:700'},fmtNum(totVol)+' kg')),
+      el('div',{style:'text-align:right'},el('div',{class:'label'},'Serie'),el('div',{style:'font-weight:700'},sets))));
+  }));
 
   // objętość wg tygodni
   const byWeek={}; list.forEach(w=>{const wk=isoWeek(w.date);byWeek[wk]=(byWeek[wk]||0)+workoutVolume(w);});
@@ -2515,7 +2507,7 @@ function statsWorkout(host,from,to){
   const byEx={}; list.forEach(w=>(w.exercises||[]).forEach(e=>{byEx[e.name]=(byEx[e.name]||0)+1;}));
   const topEx=Object.keys(byEx).sort((a,b)=>byEx[b]-byEx[a]).slice(0,6);
   const c3=el('div',{class:'card'}); c3.appendChild(el('h3',{},'Najczęstsze ćwiczenia'));
-  topEx.forEach(n=>c3.appendChild(el('div',{class:'row',style:'padding:6px 0;border-bottom:1px solid var(--sep)'},el('span',{},esc(n)),el('span',{class:'label'},byEx[n]+'×'))));
+  topEx.forEach((n,i)=>c3.appendChild(el('div',{class:'row',style:`padding:6px 0${i<topEx.length-1?';border-bottom:1px solid var(--sep)':''}`},el('span',{},esc(n)),el('span',{class:'label'},byEx[n]+'×'))));
   host.appendChild(c3);
 
   // progres wybranego ćwiczenia
@@ -2551,10 +2543,15 @@ function statsNutrition(host,from,to){
   const avg=k=>dayKeys.reduce((s,d)=>s+days[d][k],0)/n;
   const goal=(S.profile&&S.profile.calorieGoal)||2000;
   const daysInGoal=dayKeys.filter(d=>Math.abs(days[d].kcal-goal)<=goal*0.1).length;
-  host.appendChild(statCard('Średnie dzienne',[
-    ['Kalorie',fmtNum(avg('kcal'))+' kcal'],['Białko',fmtNum(avg('protein'))+' g'],
-    ['Tłuszcze',fmtNum(avg('fat'))+' g'],['Węglowodany',fmtNum(avg('carb'))+' g'],
-    ['Dni z dziennikiem',n],['Dni w celu (±10%)',daysInGoal]]));
+  host.appendChild(metricCard('meal','var(--cal)','Średnie dzienne',null,card=>{
+    card.appendChild(el('div',{},
+      el('div',{class:'mnum',style:'color:var(--cal)'},fmtNum(avg('kcal'))+' kcal'),
+      el('div',{class:'msub'},n+' '+plWord(n,'dzień','dni','dni')+' z dziennikiem • '+daysInGoal+' w celu (±10%)')));
+    card.appendChild(el('div',{class:'row',style:'margin-top:14px'},
+      el('div',{},el('div',{class:'label'},'Białko'),el('div',{style:'font-weight:700;color:var(--protein)'},fmtNum(avg('protein'))+' g')),
+      el('div',{},el('div',{class:'label'},'Tłuszcze'),el('div',{style:'font-weight:700;color:var(--fat)'},fmtNum(avg('fat'))+' g')),
+      el('div',{style:'text-align:right'},el('div',{class:'label'},'Węgle'),el('div',{style:'font-weight:700;color:var(--carb)'},fmtNum(avg('carb'))+' g'))));
+  }));
 
   const c1=el('div',{class:'card'}); c1.appendChild(el('h3',{},'Kalorie wg dni'));
   c1.appendChild(barChart(dayKeys.slice(-14).map(d=>({y:days[d].kcal,label:fmtDate(d,{short:true}).split(' ')[0]})),{color:'var(--cal)',label:'Kalorie w kolejnych dniach'}));
@@ -2565,7 +2562,7 @@ function statsNutrition(host,from,to){
   const byName={}; S.meals.filter(m=>m.date>=from&&m.date<=to).forEach(m=>{byName[m.name]=(byName[m.name]||0)+1;});
   const top=Object.keys(byName).sort((a,b)=>byName[b]-byName[a]).slice(0,6);
   const c2=el('div',{class:'card'}); c2.appendChild(el('h3',{},'Najczęstsze produkty'));
-  top.forEach(n2=>c2.appendChild(el('div',{class:'row',style:'padding:6px 0;border-bottom:1px solid var(--sep)'},el('span',{},esc(n2)),el('span',{class:'label'},byName[n2]+'×'))));
+  top.forEach((n2,i)=>c2.appendChild(el('div',{class:'row',style:`padding:6px 0${i<top.length-1?';border-bottom:1px solid var(--sep)':''}`},el('span',{},esc(n2)),el('span',{class:'label'},byName[n2]+'×'))));
   host.appendChild(c2);
 }
 
@@ -2573,10 +2570,6 @@ function statsWeight(host,from,to){
   const all=sortedBody();
   const inRange=all.filter(b=>b.date>=from&&b.date<=to);
   const p=S.profile;
-  const head=el('div',{class:'row',style:'margin-bottom:10px'});
-  head.appendChild(el('h2',{style:'margin:0;font-size:20px'},'Masa ciała'));
-  head.appendChild(el('button',{class:'btn sm',style:'background:var(--weight);color:#fff',onclick:()=>openBodyForm(),html:'<span style="display:inline-flex;gap:6px;align-items:center">'+ICONS.plus+' Pomiar</span>'}));
-  host.appendChild(head);
   if(!all.length){ host.appendChild(emptyState('scale','Brak pomiarów wagi','Zapisz pierwszy pomiar, aby zobaczyć trend.','Dodaj pomiar',()=>openBodyForm())); return; }
 
   const start=all[0], cur=all[all.length-1];
@@ -2586,27 +2579,28 @@ function statsWeight(host,from,to){
   const wAgo=(days)=>{ const key=addDays(cur.date,-days); let best=null;
     all.forEach(b=>{ if(b.date<=key)best=b; }); return best; };
   const c7=wAgo(7), c30=wAgo(30);
-  // średnia krocząca 7 dni (ostatnie 7 pomiarów)
-  const last7=all.slice(-7); const avg7=last7.reduce((s,b)=>s+b.weight,0)/last7.length;
   // tempo (kg/tydzień) na podstawie zakresu
   let rate=null; if(all.length>=2){ const span=daysBetween(start.date,cur.date)||1; rate=change/span*7; }
   const progress=target!==start.weight?clamp((start.weight-cur.weight)/(start.weight-target)*100,0,100):100;
 
-  const c0=el('div',{class:'card'});
-  c0.appendChild(el('div',{class:'row'},
-    el('div',{class:'stack'},el('div',{class:'label'},'Aktualna waga'),el('div',{class:'big-num',style:'color:var(--weight)'},fmtNum(cur.weight,1)+' kg')),
-    el('div',{class:'stack',style:'text-align:right'},el('div',{class:'label'},'Cel'),el('div',{class:'mid-num'},fmtNum(target,1)+' kg'))));
-  c0.appendChild(el('div',{style:'margin-top:12px'},progressBar(progress,100,'var(--weight)')));
-  c0.appendChild(el('p',{class:'label',style:'margin-top:6px;font-size:12px'},'Postęp do celu: '+fmtNum(progress)+'%'));
-  host.appendChild(c0);
+  host.appendChild(metricCard('scale','var(--weight)','Masa ciała',null,card=>{
+    card.style.position='relative';
+    card.appendChild(el('div',{class:'row'},
+      el('div',{class:'stack'},el('div',{class:'label'},'Aktualna waga'),el('div',{class:'mnum',style:'color:var(--weight)'},fmtNum(cur.weight,1)+' kg')),
+      el('div',{class:'stack',style:'text-align:right'},el('div',{class:'label'},'Cel'),el('div',{class:'mid-num'},fmtNum(target,1)+' kg'))));
+    card.appendChild(el('div',{style:'margin-top:12px'},progressBar(progress,100,'var(--weight)')));
+    card.appendChild(el('p',{class:'label',style:'margin-top:6px;font-size:12px'},'Postęp do celu: '+fmtNum(progress)+'%'));
+    card.appendChild(el('div',{style:'display:flex;justify-content:flex-end;margin-top:16px'},
+      el('button',{class:'icon-btn','aria-label':'Dodaj pomiar',onclick:()=>openBodyForm(),html:ICONS.plus,
+        style:'background:var(--weight);color:#fff'})));
+  }));
 
   host.appendChild(statCard('Zmiany',[
     ['Waga początkowa',fmtNum(start.weight,1)+' kg'],
     ['Całkowita zmiana',(change>=0?'+':'')+fmtNum(change,1)+' kg'],
-    ['Ostatnie 7 dni',c7?((cur.weight-c7.weight>=0?'+':'')+fmtNum(cur.weight-c7.weight,1)+' kg'):'—'],
     ['Ostatnie 30 dni',c30?((cur.weight-c30.weight>=0?'+':'')+fmtNum(cur.weight-c30.weight,1)+' kg'):'—'],
-    ['Średnia krocząca (7)',fmtNum(avg7,1)+' kg'],
-    ['Tempo',rate!=null?((rate>=0?'+':'')+fmtNum(rate,2)+' kg/tydz.'):'—']]));
+    ['Ostatnie 7 dni',c7?((cur.weight-c7.weight>=0?'+':'')+fmtNum(cur.weight-c7.weight,1)+' kg'):'—'],
+    ['Tempo',rate!=null?((rate>=0?'+':'')+fmtNum(rate,2)+' kg/tydz.'):'—']],'var(--weight)'));
 
   const c1=el('div',{class:'card'}); c1.appendChild(el('h3',{},'Trend wagi'));
   const pts=(inRange.length?inRange:all).map(b=>({y:b.weight,label:fmtDate(b.date,{short:true})}));
@@ -2614,28 +2608,23 @@ function statsWeight(host,from,to){
   c1.appendChild(el('p',{class:'sr-only'},'Waga: '+pts.map(x=>x.label+': '+x.y+' kg').join('; ')));
   host.appendChild(c1);
 
-  // obwody — zmiana
-  const measures=[['waist','Talia'],['chest','Klatka'],['hips','Biodra'],['arm','Ramię'],['thigh','Udo'],['bodyfat','Tk. tłuszczowa']];
-  const withData=measures.filter(([k])=>all.some(b=>b[k]!=null));
-  if(withData.length){
-    const c2=el('div',{class:'card'}); c2.appendChild(el('h3',{},'Obwody i skład'));
-    withData.forEach(([k,lab])=>{
-      const first=all.find(b=>b[k]!=null), last=[...all].reverse().find(b=>b[k]!=null);
-      const d=last.weight!=null&&first!==last?last[k]-first[k]:0;
-      c2.appendChild(el('div',{class:'row',style:'padding:6px 0;border-bottom:1px solid var(--sep)'},
-        el('span',{class:'label'},lab),el('span',{},fmtNum(last[k],1)+(k==='bodyfat'?' %':' cm')+(first!==last?`  (${d>=0?'+':''}${fmtNum(d,1)})`:''))));
-    });
-    host.appendChild(c2);
-  }
-
   // historia
   const c3=el('div',{class:'card'}); c3.appendChild(el('h3',{},'Historia pomiarów'));
   [...all].reverse().forEach(b=>{
-    const it=el('div',{class:'list-item tap',style:'cursor:pointer',onclick:()=>openBodyForm(b)});
+    const REVEAL=118;
+    const swipeWrap=el('div',{class:'task-swipe'});
+    const group=el('div',{class:'swipe-actions-group',style:'transform:scale(0);opacity:0'});
+    group.appendChild(el('button',{class:'swipe-more','aria-label':'Szybkie akcje',html:ICONS.dots,
+      onclick:e=>{e.stopPropagation();openBodyForm(b);}}));
+    group.appendChild(el('button',{class:'swipe-del-pill','aria-label':'Usuń pomiar',
+      onclick:e=>{e.stopPropagation();S.bodyMeasurements=S.bodyMeasurements.filter(x=>x.id!==b.id);save();renderers[currentTab]&&renderers[currentTab]();}},'Usuń'));
+    swipeWrap.appendChild(el('div',{class:'task-swipe-actions',style:`width:${REVEAL}px`},group));
+    const it=el('div',{class:'list-item tap'});
     it.appendChild(el('div',{class:'grow'},el('div',{class:'t1'},fmtNum(b.weight,1)+' kg'),
-      el('div',{class:'t2'},fmtDate(b.date)+(b.bodyfat?' • '+fmtNum(b.bodyfat,1)+'% tk.':''))));
-    it.appendChild(el('div',{class:'ic',html:ICONS.chevRs,style:'color:var(--muted)'}));
-    c3.appendChild(it);
+      el('div',{class:'t2'},fmtDate(b.date))));
+    swipeWrap.appendChild(it);
+    attachSwipeDelete(it,group,swipeWrap,REVEAL);
+    c3.appendChild(swipeWrap);
   });
   host.appendChild(c3);
   host.appendChild(el('p',{class:'label',style:'text-align:center;font-size:12px;margin-top:4px'},'Komunikaty mają charakter wspierający — liczy się trend, nie pojedynczy pomiar.'));
@@ -2781,7 +2770,7 @@ function startDemo(){
   }
   // pomiary wagi (spadająca)
   for(let d=30;d>=0;d-=3){ S.bodyMeasurements.push({id:uid(),demo:true,date:addDays(T,-d),
-    weight:Math.round((84-(30-d)*0.06)*10)/10,bodyfat:d===0?18:null,waist:d%9===0?88-(30-d)*0.05:null,note:''}); }
+    weight:Math.round((84-(30-d)*0.06)*10)/10,note:''}); }
   save();
   initNav(); go('dashboard');
   toast('Włączono tryb demonstracyjny','ok');
